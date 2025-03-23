@@ -1,4 +1,4 @@
-# Homework 3: Numerica's Task Prioritizer (30 points)
+# Homework 3: Numerica's Task Prioritizer (25 points)
 
 ## :sparkles: Lore: The Urgent Quests of Numerica
 
@@ -72,9 +72,9 @@ You may find it helpful to keep track of the order in which `add()` was called f
 
 For this assignment, you will submit your `TaskPrioritizer.java` file and any additional files you create through Gradescope.
 
-__Submission link:__ [https://www.gradescope.com/courses/544834](https://www.gradescope.com/courses/844378)
+__Submission link:__ [https://www.gradescope.com/courses/965721/assignments/5970663](https://www.gradescope.com/courses/965721/assignments/5970663)
 
-__Deadline:__ Nov 18th, 2024 at 11:59 PM EST (2 weeks from the release of the assignment).
+__Deadline:__ April 6th, 2025 at 11:59 PM EST.
 
 __Late Submission Policy:__ Late submissions will not be accepted.
 
@@ -84,7 +84,7 @@ __Late Submission Policy:__ Late submissions will not be accepted.
 
 - __Initialization:__ The `TaskPrioritizer` object is initialized with no tasks.
 - __Operations:__ The methods can be invoked in any arbitrary order, as long as they are valid.
-- __Testing:__ We will test your implementation with various test cases, each containing different sequences of operations. Based on how many and which test cases your implementation passes, we will assign you a score between 0 and 30 points.
+- __Testing:__ We will test your implementation with various test cases, each containing different sequences of operations. Based on how many and which test cases your implementation passes, we will assign you a score between 0 and 25 points.
 
 ### Criteria
 
