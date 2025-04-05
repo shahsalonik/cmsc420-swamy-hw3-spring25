@@ -10,7 +10,7 @@ import java.util.List;
 public class TaskPrioritizer {
 
     private TaskHashTable taskTable; // hash table with chaining
-    private ReadyHeap readyHeap; // heap for tasks that have no dependencies
+    private TaskHeap taskHeap; // heap for tasks that have no dependencies
     private int insertionCounter; // track order of insertion
 
     /**
@@ -18,7 +18,7 @@ public class TaskPrioritizer {
      */
     public TaskPrioritizer() {
         taskTable = new TaskHashTable(1000003);
-        readyHeap = new ReadyHeap();
+        taskHeap = new TaskHeap();
         insertionCounter = 0;
     }
 
@@ -31,6 +31,7 @@ public class TaskPrioritizer {
      */
     public void add(String taskId, int urgencyLevel, String[] dependencies) {
         Task t = taskTable.get(taskId);
+        // does nothing if the task was already added, otherwise updates information associated with it
         if (t != null) {
             if (t.added) {
                 return;
@@ -43,7 +44,8 @@ public class TaskPrioritizer {
             t = new Task(taskId, urgencyLevel, insertionCounter++, true);
             taskTable.put(t);
         }
-    
+
+        // processes each of the dependencies of the task
         for (String depId : dependencies) {
             Task dep = taskTable.get(depId);
             if (dep == null) {
@@ -57,7 +59,7 @@ public class TaskPrioritizer {
             }
         }
         if (t.unresolvedCount == 0) {
-            readyHeap.insert(t);
+            taskHeap.insert(t);
         }
     }
 
@@ -75,7 +77,7 @@ public class TaskPrioritizer {
         }
         t.urgencyLevel = newUrgencyLevel;
         if (t.unresolvedCount == 0) {
-            readyHeap.update(t);
+            taskHeap.update(t);
         }
     }
 
@@ -87,17 +89,19 @@ public class TaskPrioritizer {
     * @return null if there are no unresolved tasks left
     */
     public String resolve() {
-        if (readyHeap.isEmpty()) {
+        if (taskHeap.isEmpty()) {
             return null;
         }
-        Task t = readyHeap.extractTop();
+        // remove the task with the highest priority from the top of the heap
+        Task t = taskHeap.extractTop();
         t.resolved = true;
+        // go through all of the tasks that depend on this task and update accordingly
         for (Task dependent : t.isNeededFor) {
             if (dependent.added && !dependent.resolved) {
                 if (dependent.unresolvedCount > 0) {
                     dependent.unresolvedCount--;
                     if (dependent.unresolvedCount == 0) {
-                        readyHeap.insert(dependent);
+                        taskHeap.insert(dependent);
                     }
                 }
             }
@@ -117,7 +121,11 @@ public class TaskPrioritizer {
         int unresolvedCount;
         boolean added;
         boolean resolved;
+        int taskHeapIndex;
 
+        /**
+         * Constructor to initialize a Task
+         */
         public Task(String taskId, int urgencyLevel, int insertionOrder, boolean added) {
             this.taskId = taskId;
             this.urgencyLevel = urgencyLevel;
@@ -127,55 +135,85 @@ public class TaskPrioritizer {
             this.dependsOn = new ArrayList<>();
             this.isNeededFor = new ArrayList<>();
             this.unresolvedCount = 0;
+            this.taskHeapIndex = -1;
         }
     }
 
     /**
      * Class for Tasks that are ready to be resolved.
      */
-    private static class ReadyHeap {
+    private static class TaskHeap {
         private ArrayList<Task> heap;
-        private ReadyIndexMap indexMap;
 
-        public ReadyHeap() {
+        /**
+         * Constructor to initilialize the heap
+         */
+        public TaskHeap() {
             heap = new ArrayList<>();
-            indexMap = new ReadyIndexMap();
         }
 
+        /**
+         * Inserts a task into the heap.
+         * 
+         * @param t - the task to insert
+         */
         public void insert(Task t) {
             heap.add(t);
             int index = heap.size() - 1;
-            indexMap.put(t.taskId, index);
+            t.taskHeapIndex = index;
             percolateUp(index);
         }
 
+        /**
+         * Updates the position of the task in the heap.
+         * 
+         * @param t - the task to update
+         */
         public void update(Task t) {
-            int index = indexMap.get(t.taskId);
-            if (index == -1)
+            int index = t.taskHeapIndex;
+            if (index == -1) {
                 return;
+            }
             if (!percolateUp(index)) {
                 percolateDown(index);
             }
         }
 
+        /**
+         * Removes the task with the greatest urgency.
+         * 
+         * @return the task with the greatest urgency.
+         */
         public Task extractTop() {
-            if (heap.isEmpty())
+            if (heap.isEmpty()) {
                 return null;
+            }
             Task top = heap.get(0);
             Task last = heap.remove(heap.size() - 1);
-            indexMap.remove(top.taskId);
+            top.taskHeapIndex = -1;
             if (!heap.isEmpty()) {
                 heap.set(0, last);
-                indexMap.put(last.taskId, 0);
+                last.taskHeapIndex = 0;
                 percolateDown(0);
             }
             return top;
         }
 
+        /**
+         * Checks if the heap is empty.
+         * 
+         * @return true if the heap is empty, false otherwise.
+         */
         public boolean isEmpty() {
             return heap.isEmpty();
         }
 
+        /**
+         * Maintains the heap ordering of a task at a particular index.
+         * 
+         * @param i - the index of the task
+         * @return true if the task was moved, false otherwise.
+         */
         private boolean percolateUp(int i) {
             boolean swapped = false;
             while (i > 0) {
@@ -191,6 +229,12 @@ public class TaskPrioritizer {
             return swapped;
         }
 
+        /**
+         * Maintains the heap ordering of a task at a particular index.
+         * 
+         * @param i - the index of the task
+         * @return true if the task was moved, false otherwise.
+         */
         private void percolateDown(int i) {
             int n = heap.size();
             while (true) {
@@ -211,106 +255,32 @@ public class TaskPrioritizer {
             }
         }
 
+        /**
+         * Swaps 2 tasks at the indices i and j
+         * 
+         * @param i - the task at index i
+         * @param j - the task at index j
+         */
         private void swap(int i, int j) {
             Task tmp = heap.get(i);
             heap.set(i, heap.get(j));
             heap.set(j, tmp);
-            indexMap.put(heap.get(i).taskId, i);
-            indexMap.put(heap.get(j).taskId, j);
+            heap.get(i).taskHeapIndex = i;
+            heap.get(j).taskHeapIndex = j;
         }
 
+        /**
+         * Compares 2 tasks based first on urgency level and then on insertion order.
+         * 
+         * @param t1 - the first task to compare
+         * @param t2 - the second task to compare
+         * @return negative int, 0, or a positive int depending on the ordering of the tasks
+         */
         private int compare(Task t1, Task t2) {
             if (t1.urgencyLevel != t2.urgencyLevel) {
                 return Integer.compare(t2.urgencyLevel, t1.urgencyLevel);
             }
             return Integer.compare(t1.insertionOrder, t2.insertionOrder);
-        }
-    }
-
-    /**
-     * Class to map task ID to index in the heap
-     */
-    private static class ReadyIndexMap {
-        private static class Entry {
-            String key;
-            int value;
-            Entry(String key, int value) {
-                this.key = key;
-                this.value = value;
-            }
-        }
-        private Entry[] table;
-        private int capacity;
-        private int size;
-        private static final double LOAD_FACTOR = 0.75;
-
-        public ReadyIndexMap() {
-            capacity = 16;
-            table = new Entry[capacity];
-            size = 0;
-        }
-
-        private int hash(String key) {
-            int h = key.hashCode();
-            return (h & 0x7fffffff) % capacity;
-        }
-
-        public void put(String key, int value) {
-            if (size >= capacity * LOAD_FACTOR) {
-                resize();
-            }
-            int index = hash(key);
-            while (table[index] != null) {
-                if (table[index].key.equals(key)) {
-                    table[index].value = value;
-                    return;
-                }
-                index = (index + 1) % capacity;
-            }
-            table[index] = new Entry(key, value);
-            size++;
-        }
-
-        public int get(String key) {
-            int index = hash(key);
-            while (table[index] != null) {
-                if (table[index].key.equals(key)) {
-                    return table[index].value;
-                }
-                index = (index + 1) % capacity;
-            }
-            return -1;
-        }
-
-        public void remove(String key) {
-            int index = hash(key);
-            while (table[index] != null) {
-                if (table[index].key.equals(key)) {
-                    table[index] = null;
-                    size--;
-                    index = (index + 1) % capacity;
-                    while (table[index] != null) {
-                        Entry entry = table[index];
-                        table[index] = null;
-                        size--;
-                        put(entry.key, entry.value);
-                        index = (index + 1) % capacity;
-                    }
-                    return;
-                }
-                index = (index + 1) % capacity;
-            }
-        }
-
-        private void resize() {
-            Entry[] oldTable = table;
-            capacity *= 2;
-            table = new Entry[capacity];
-            size = 0;
-            for (Entry e : oldTable) {
-                if (e != null)
-                    put(e.key, e.value);
-            }
         }
     }
 
@@ -321,10 +291,16 @@ public class TaskPrioritizer {
         private Bucket[] table;
         private int capacity;
 
+        /**
+         * Where each LinkedList of Noes will be stored.
+         */
         private static class Bucket {
             Node head;
         }
 
+        /**
+         * Stores information for chaining.
+         */
         private static class Node {
             Task task;
             Node next;
@@ -333,6 +309,9 @@ public class TaskPrioritizer {
             }
         }
 
+        /**
+         * Constructor to initialize the hash table
+         */
         public TaskHashTable(int capacity) {
             this.capacity = capacity;
             table = new Bucket[capacity];
@@ -341,13 +320,26 @@ public class TaskPrioritizer {
             }
         }
 
+        /**
+         * Hashcode function
+         * 
+         * @param key - the key to hash
+         * @return an int representing the hash function
+         */
         private int hash(String key) {
             int h = key.hashCode();
-            if (h < 0)
+            if (h < 0) {
                 h = -h;
+            }
             return h % capacity;
         }
 
+        /**
+         * Return the key in a certain Bucket.
+         * 
+         * @param key - the key to return
+         * @return the Task associated with that taskId
+         */
         public Task get(String key) {
             int idx = hash(key);
             Node cur = table[idx].head;
@@ -359,6 +351,11 @@ public class TaskPrioritizer {
             return null;
         }
 
+        /**
+         * Puts a Task in the Bucket.
+         * 
+         * @param task - the task to insert
+         */
         public void put(Task task) {
             int idx = hash(task.taskId);
             Node newNode = new Node(task);
@@ -366,6 +363,12 @@ public class TaskPrioritizer {
             table[idx].head = newNode;
         }
 
+        /**
+         * Checks if the key is in the table.
+         * 
+         * @param key - the key to check for
+         * @return true if the key exists, false otherwise.
+         */
         public boolean contains(String key) {
             return get(key) != null;
         }
